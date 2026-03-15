@@ -1,0 +1,69 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: repositories
+    // Fields: url, name, status, ownerId, createdAt, lastRunAt, currentStep
+    //
+    // Collection: features (subcollection of repositories)
+    // Fields: repoId, name, purpose, status, dependencies, codeReferences, docReferences
+    //
+    // Collection: steps (subcollection of repositories)
+    // Fields: repoId, stepNumber, name, status, output, startedAt, completedAt
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(ownerId) {
+      return isAuthenticated() && request.auth.uid == ownerId;
+    }
+
+    function isRepoOwner(repoId) {
+      return isOwner(get(/databases/$(database)/documents/repositories/$(repoId)).data.ownerId);
+    }
+
+    function isValidRepository(data) {
+      return data.keys().hasAll(['url', 'name', 'status', 'ownerId']) &&
+             data.url is string && data.url.size() > 0 &&
+             data.name is string && data.name.size() > 0 &&
+             data.status in ['idle', 'analyzing', 'repairing', 'verifying', 'green', 'failed'] &&
+             data.ownerId == request.auth.uid;
+    }
+
+    match /repositories/{repoId} {
+      // Allow get if the user is the owner
+      allow get: if isAuthenticated() && request.auth.uid == resource.data.ownerId;
+      
+      // Allow list if the query is filtered by the user's own ownerId
+      allow list: if isAuthenticated() && request.query.limit <= 100 && (
+        // Either the document belongs to the user
+        (resource != null && request.auth.uid == resource.data.ownerId) ||
+        // Or the query is filtered by ownerId (for empty collections or initial checks)
+        (request.query.filters.size() > 0 && request.query.filters[0].op == '==' && request.query.filters[0].field == 'ownerId' && request.query.filters[0].value == request.auth.uid)
+      );
+
+      allow create: if isAuthenticated() && isValidRepository(request.resource.data);
+      allow update: if isAuthenticated() && request.auth.uid == resource.data.ownerId && isValidRepository(request.resource.data);
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.ownerId;
+
+      match /features/{featureId} {
+        allow read: if isRepoOwner(repoId);
+        allow write: if isRepoOwner(repoId);
+      }
+
+      match /steps/{stepId} {
+        allow read: if isRepoOwner(repoId);
+        allow write: if isRepoOwner(repoId);
+      }
+    }
+
+    match /users/{userId} {
+      allow read, write: if request.auth.uid == userId;
+    }
+  }
+}

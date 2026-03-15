@@ -1,0 +1,65 @@
+{
+  "entities": {
+    "Repository": {
+      "title": "Repository",
+      "description": "A GitHub repository being analyzed and fixed.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "url": { "type": "string" },
+        "name": { "type": "string" },
+        "status": { "type": "string", "enum": ["idle", "analyzing", "repairing", "verifying", "green", "failed"] },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastRunAt": { "type": "string", "format": "date-time" },
+        "currentStep": { "type": "integer" }
+      },
+      "required": ["url", "name", "status", "ownerId"]
+    },
+    "FeatureCard": {
+      "title": "Feature Card",
+      "description": "A single source of truth for a feature within a repository.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "repoId": { "type": "string" },
+        "name": { "type": "string" },
+        "purpose": { "type": "string" },
+        "status": { "type": "string", "enum": ["detected", "incomplete", "broken", "verified"] },
+        "dependencies": { "type": "array", "items": { "type": "string" } },
+        "codeReferences": { "type": "array", "items": { "type": "string" } },
+        "docReferences": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["repoId", "name", "status"]
+    },
+    "WorkflowStep": {
+      "title": "Workflow Step",
+      "description": "One of the 100 steps in the enterprise workflow.",
+      "type": "object",
+      "properties": {
+        "repoId": { "type": "string" },
+        "stepNumber": { "type": "integer" },
+        "name": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "running", "completed", "failed"] },
+        "output": { "type": "string" },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["repoId", "stepNumber", "name", "status"]
+    }
+  },
+  "firestore": {
+    "/repositories/{repoId}": {
+      "schema": "Repository",
+      "description": "Main repository records."
+    },
+    "/repositories/{repoId}/features/{featureId}": {
+      "schema": "FeatureCard",
+      "description": "Feature cards for a repository."
+    },
+    "/repositories/{repoId}/steps/{stepId}": {
+      "schema": "WorkflowStep",
+      "description": "Workflow execution steps."
+    }
+  }
+}
